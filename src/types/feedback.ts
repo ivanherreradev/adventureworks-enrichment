@@ -27,22 +27,9 @@ export interface EnrichmentResult {
   suggestedAction: string;
 }
 
-export interface EnrichedFeedbackRecord {
+export interface FeedbackEnrichmentRecord {
   feedbackId: string;
-  salesOrderId: number | null;
-  customerKey: number | null;
-  productKey: number | null;
-  salesTerritoryKey: number | null;
-  dateKey: number | null;
-  channel: string | null;
-  rawFeedbackText: string;
-  sentiment: Sentiment | null;
-  sentimentScore: number | null;
-  topic: string | null;
-  subTopic: string | null;
-  urgency: Urgency | null;
-  summary: string | null;
-  suggestedAction: string | null;
+  openAIResult: string | null;
   processingStatus: ProcessingStatus;
   openAIModel: string | null;
   processedAt: Date | null;

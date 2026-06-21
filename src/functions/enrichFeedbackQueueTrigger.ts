@@ -2,13 +2,11 @@ import { app, InvocationContext } from '@azure/functions';
 import { loadConfig } from '../modules/config/config';
 import { logInfo, logWarning, logError, logEvent } from '../modules/logging/logger';
 import { enrichFeedback } from '../modules/openai/openaiClient';
-import { validateEnrichment } from '../modules/openai/enrichmentSchema';
 import { insertRawFeedback } from '../modules/sql/rawFeedbackRepository';
-import { insertEnrichedFeedback } from '../modules/sql/factFeedbackRepository';
+import { insertEnrichment } from '../modules/sql/enrichmentRepository';
 import { insertAuditLog } from '../modules/sql/auditRepository';
-import { closePool } from '../modules/sql/sqlClient';
 import { Timer } from '../utils/timer';
-import type { FeedbackMessage, EnrichedFeedbackRecord, ProcessingStatus } from '../types/feedback';
+import type { FeedbackMessage, FeedbackEnrichmentRecord, ProcessingStatus } from '../types/feedback';
 
 const FUNCTION_NAME = 'EnrichFeedbackQueueTrigger';
 
@@ -38,21 +36,6 @@ function parseFeedbackMessage(raw: unknown): FeedbackMessage {
   };
 }
 
-function toDateKey(createdDate: string | null): number | null {
-  if (!createdDate) {
-    return null;
-  }
-  const date = new Date(createdDate);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return Number(
-    `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(
-      date.getUTCDate()
-    ).padStart(2, '0')}`
-  );
-}
-
 async function recordAudit(
   feedbackId: string,
   stepName: string,
@@ -67,6 +50,26 @@ async function recordAudit(
   }
 }
 
+async function persistEnrichment(
+  feedbackId: string,
+  status: ProcessingStatus,
+  openAIResult: string | null,
+  model: string | null
+): Promise<void> {
+  try {
+    const record: FeedbackEnrichmentRecord = {
+      feedbackId,
+      openAIResult,
+      processingStatus: status,
+      openAIModel: model,
+      processedAt: new Date(),
+    };
+    await insertEnrichment(record);
+  } catch (error) {
+    logError('EnrichmentPersistFailed', error, { feedbackId });
+  }
+}
+
 async function enrichFeedbackQueueTrigger(
   queueEntry: unknown,
   context: InvocationContext
@@ -75,12 +78,10 @@ async function enrichFeedbackQueueTrigger(
   context.info(`FeedbackProcessingStarted from queue "${config.storageQueueName}".`);
 
   let feedback: FeedbackMessage;
-  let feedbackIdForAudit: string | null = null;
   const totalTimer = new Timer();
 
   try {
     feedback = parseFeedbackMessage(queueEntry);
-    feedbackIdForAudit = feedback.feedbackId;
     logInfo('FeedbackProcessingStarted', { feedbackId: feedback.feedbackId });
   } catch (error) {
     logWarning('InvalidQueuePayload', {
@@ -118,14 +119,13 @@ async function enrichFeedbackQueueTrigger(
     throw error;
   }
 
-  let rawContent: string;
+  let openAIResult: string;
   let model: string;
   try {
     const openAIResponse = await enrichFeedback(feedback);
-    rawContent = openAIResponse.content;
+    openAIResult = openAIResponse.content;
     model = openAIResponse.model;
   } catch (error) {
-    const status: ProcessingStatus = 'Failed';
     logError('FeedbackProcessingFailed', error, { feedbackId });
     await recordAudit(
       feedbackId,
@@ -134,84 +134,24 @@ async function enrichFeedbackQueueTrigger(
       error instanceof Error ? error.message : String(error),
       null
     );
-    await persistFailedRecord(feedback, status, null, null);
+    await persistEnrichment(feedbackId, 'Failed', null, null);
     throw error;
   }
 
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(rawContent);
-  } catch (error) {
-    const status: ProcessingStatus = 'InvalidAIResponse';
-    logError('AIJsonParseFailed', error, { feedbackId, rawContent });
-    await recordAudit(
-      feedbackId,
-      'ParseAIResponse',
-      'Failed',
-      `JSON.parse failed: ${error instanceof Error ? error.message : String(error)}`,
-      null
-    );
-    await persistFailedRecord(feedback, status, null, rawContent);
-    throw error;
-  }
-
-  const validation = validateEnrichment(parsed);
-  if (!validation.valid) {
-    const status: ProcessingStatus = 'InvalidAIResponse';
-    logWarning('AIResponseSchemaInvalid', {
-      feedbackId,
-      errors: validation.errors,
-      rawContent,
-    });
-    await recordAudit(
-      feedbackId,
-      'ValidateAIResponse',
-      'Failed',
-      validation.errors.join(' | '),
-      null
-    );
-    await persistFailedRecord(feedback, status, null, rawContent);
-    throw new Error(`Invalid AI response schema for feedback ${feedbackId}.`);
-  }
-
-  const enrichment = validation.result!;
-  const enrichedRecord: EnrichedFeedbackRecord = {
-    feedbackId,
-    salesOrderId: feedback.salesOrderId ?? null,
-    customerKey: feedback.customerId ?? null,
-    productKey: feedback.productId ?? null,
-    salesTerritoryKey: null,
-    dateKey: toDateKey(feedback.createdDate),
-    channel: feedback.channel ?? null,
-    rawFeedbackText: feedback.feedbackText,
-    sentiment: enrichment.sentiment,
-    sentimentScore: enrichment.sentimentScore,
-    topic: enrichment.topic,
-    subTopic: enrichment.subTopic ?? null,
-    urgency: enrichment.urgency,
-    summary: enrichment.summary,
-    suggestedAction: enrichment.suggestedAction,
-    processingStatus: 'Enriched',
-    openAIModel: model,
-    processedAt: new Date(),
-  };
-
-  try {
-    const factTimer = new Timer();
-    await insertEnrichedFeedback(enrichedRecord);
+    const storeTimer = new Timer();
+    await persistEnrichment(feedbackId, 'Enriched', openAIResult, model);
     logEvent('FeedbackEnriched', {
       feedbackId,
-      sentiment: enrichment.sentiment,
-      topic: enrichment.topic,
-      urgency: enrichment.urgency,
-      durationMs: factTimer.elapsedMs(),
+      model,
+      durationMs: storeTimer.elapsedMs(),
     });
-    await recordAudit(feedbackId, 'StoreEnrichedFeedback', 'Success', null, factTimer.elapsedMs());
+    await recordAudit(feedbackId, 'StoreEnrichment', 'Success', null, storeTimer.elapsedMs());
   } catch (error) {
     logError('SqlWriteFailed', error, { feedbackId });
     await recordAudit(
       feedbackId,
-      'StoreEnrichedFeedback',
+      'StoreEnrichment',
       'Failed',
       error instanceof Error ? error.message : String(error),
       null
@@ -223,39 +163,6 @@ async function enrichFeedbackQueueTrigger(
     feedbackId,
     totalDurationMs: totalTimer.elapsedMs(),
   });
-}
-
-async function persistFailedRecord(
-  feedback: FeedbackMessage,
-  status: ProcessingStatus,
-  model: string | null,
-  rawResponse: string | null
-): Promise<void> {
-  try {
-    const record: EnrichedFeedbackRecord = {
-      feedbackId: feedback.feedbackId,
-      salesOrderId: feedback.salesOrderId ?? null,
-      customerKey: feedback.customerId ?? null,
-      productKey: feedback.productId ?? null,
-      salesTerritoryKey: null,
-      dateKey: toDateKey(feedback.createdDate),
-      channel: feedback.channel ?? null,
-      rawFeedbackText: feedback.feedbackText,
-      sentiment: null,
-      sentimentScore: null,
-      topic: null,
-      subTopic: null,
-      urgency: null,
-      summary: null,
-      suggestedAction: rawResponse,
-      processingStatus: status,
-      openAIModel: model,
-      processedAt: new Date(),
-    };
-    await insertEnrichedFeedback(record);
-  } catch (error) {
-    logError('FailedRecordPersistFailed', error, { feedbackId: feedback.feedbackId });
-  }
 }
 
 app.storageQueue(FUNCTION_NAME, {
