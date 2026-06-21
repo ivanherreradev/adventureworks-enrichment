@@ -16,8 +16,8 @@
     "OLLAMA_ENDPOINT": "http://localhost:11434/v1",
     "OLLAMA_MODEL": "llama3.1",
     "OLLAMA_API_KEY": "<optional-for-ollama-cloud>",
-    "OLLAMA_ENDPOINT_SECRET_NAME": "ollama-endpoint",
-    "OLLAMA_API_KEY_SECRET_NAME": "ollama-api-key",
+    "OLLAMA_ENDPOINT_SECRET_NAME": "OllamaEndpoint",
+    "OLLAMA_API_KEY_SECRET_NAME": "OllamaApiKey",
 
     "OPENAI_API_KEY": "<replace-with-your-openai-key>",
     "OPENAI_MODEL": "gpt-4o-mini",
@@ -25,7 +25,7 @@
     "SQL_CONNECTION_STRING": "Server=tcp:sql-aw-ai-dev.database.windows.net,1433;Database=sqldb-aw-ai-dev;User Id=<user>;Password=<password>;Encrypt=true;TrustServerCertificate=false;",
 
     "KEY_VAULT_URL": "https://kv-aw-ai-dev.vault.azure.net/",
-    "SQL_CONNECTION_SECRET_NAME": "sql-connection-string",
+    "SQL_CONNECTION_SECRET_NAME": "SqlConnectionString",
 
     "APP_ENVIRONMENT": "dev",
     "APPINSIGHTS_INSTRUMENTATIONKEY": "<replace-with-your-instrumentation-key-for-cloud>"
