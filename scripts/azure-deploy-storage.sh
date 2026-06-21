@@ -9,7 +9,7 @@ set -euo pipefail
 
 # ===== Variables (edit as needed) ============================================
 RESOURCE_GROUP="rg-aw-ai-dev"
-LOCATION="eastus"
+LOCATION="centralus"
 STORAGE_ACCOUNT="stawaiidev"          # must be globally unique, lowercase, 3-24 chars
 QUEUE_NAME="feedback-incoming"
 SKU="Standard_LRS"
