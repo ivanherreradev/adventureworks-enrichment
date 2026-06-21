@@ -1,7 +1,7 @@
 import { AzureOpenAI, OpenAI } from 'openai';
 import { DefaultAzureCredential, getBearerTokenProvider } from '@azure/identity';
 import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { loadConfig, type LlmProvider } from '../config/config';
+import { loadConfig, getOllamaEndpoint, getOllamaApiKey, type LlmProvider } from '../config/config';
 import { SYSTEM_PROMPT, buildUserPrompt, PROMPT_TEMPLATE_VERSION } from './promptTemplate';
 import type { FeedbackMessage } from '../../types/feedback';
 import { logInfo, logError, logEvent } from '../logging/logger';
@@ -32,13 +32,13 @@ function createAzureClient(config: ReturnType<typeof loadConfig>): AzureOpenAI {
   });
 }
 
-function createOllamaClient(config: ReturnType<typeof loadConfig>): OpenAI {
+async function createOllamaClient(): Promise<OpenAI> {
+  const endpoint = await getOllamaEndpoint();
+  const apiKey = await getOllamaApiKey();
   return new OpenAI({
-    baseURL: config.ollamaEndpoint!,
-    apiKey: config.ollamaApiKey ?? 'ollama',
-    defaultHeaders: config.ollamaApiKey
-      ? { Authorization: `Bearer ${config.ollamaApiKey}` }
-      : undefined,
+    baseURL: endpoint,
+    apiKey: apiKey ?? 'ollama',
+    defaultHeaders: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
   });
 }
 
@@ -48,7 +48,7 @@ function createOpenAIClient(config: ReturnType<typeof loadConfig>): OpenAI {
   });
 }
 
-function getClient(): LlmClient {
+async function getClient(): Promise<LlmClient> {
   if (cachedClient) {
     return cachedClient;
   }
@@ -61,7 +61,7 @@ function getClient(): LlmClient {
       cachedClient = createAzureClient(config);
       break;
     case 'ollama':
-      cachedClient = createOllamaClient(config);
+      cachedClient = await createOllamaClient();
       break;
     case 'openai':
       cachedClient = createOpenAIClient(config);
@@ -83,7 +83,7 @@ export interface LlmResponse {
 
 export async function enrichFeedback(feedback: FeedbackMessage): Promise<LlmResponse> {
   const config = loadConfig();
-  const client = getClient();
+  const client = await getClient();
 
   const messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: SYSTEM_PROMPT },

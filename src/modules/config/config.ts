@@ -13,6 +13,8 @@ export interface AppConfig {
   ollamaEndpoint: string | null;
   ollamaModel: string | null;
   ollamaApiKey: string | null;
+  ollamaEndpointSecretName: string | null;
+  ollamaApiKeySecretName: string | null;
   openaiApiKey: string | null;
   openaiModel: string | null;
   llmModel: string;
@@ -26,6 +28,9 @@ export interface AppConfig {
 
 let cachedConfig: AppConfig | null = null;
 let cachedSqlConnectionString: string | null = null;
+let cachedOllamaEndpoint: string | null = null;
+let cachedOllamaApiKey: string | null = null;
+let cachedSecretClient: SecretClient | null = null;
 
 function requireSetting(name: string): string {
   const value = process.env[name];
@@ -70,11 +75,16 @@ function validateProviderConfig(config: AppConfig): void {
       }
       break;
     case 'ollama':
-      if (!config.ollamaEndpoint) {
-        throw new Error('OLLAMA_ENDPOINT is required when LLM_PROVIDER=ollama');
-      }
       if (!config.ollamaModel) {
         throw new Error('OLLAMA_MODEL is required when LLM_PROVIDER=ollama');
+      }
+      if (
+        !config.ollamaEndpoint &&
+        !(config.useKeyVault && config.ollamaEndpointSecretName)
+      ) {
+        throw new Error(
+          'OLLAMA_ENDPOINT or OLLAMA_ENDPOINT_SECRET_NAME (with KEY_VAULT_URL) is required when LLM_PROVIDER=ollama'
+        );
       }
       break;
     case 'openai':
@@ -112,6 +122,8 @@ export function loadConfig(): AppConfig {
     ollamaEndpoint: optionalSetting('OLLAMA_ENDPOINT'),
     ollamaModel: optionalSetting('OLLAMA_MODEL'),
     ollamaApiKey: optionalSetting('OLLAMA_API_KEY'),
+    ollamaEndpointSecretName: optionalSetting('OLLAMA_ENDPOINT_SECRET_NAME'),
+    ollamaApiKeySecretName: optionalSetting('OLLAMA_API_KEY_SECRET_NAME'),
     openaiApiKey: optionalSetting('OPENAI_API_KEY'),
     openaiModel: optionalSetting('OPENAI_MODEL'),
     llmModel: '',
@@ -129,6 +141,27 @@ export function loadConfig(): AppConfig {
   return cachedConfig;
 }
 
+function getSecretClient(): SecretClient | null {
+  const config = loadConfig();
+  if (!config.keyVaultUrl) {
+    return null;
+  }
+  if (!cachedSecretClient) {
+    const credential = new DefaultAzureCredential();
+    cachedSecretClient = new SecretClient(config.keyVaultUrl, credential);
+  }
+  return cachedSecretClient;
+}
+
+async function resolveSecret(secretName: string): Promise<string> {
+  const client = getSecretClient();
+  if (!client) {
+    throw new Error(`Cannot resolve secret "${secretName}" without KEY_VAULT_URL.`);
+  }
+  const secret = await client.getSecret(secretName);
+  return secret.value;
+}
+
 export async function getSqlConnectionString(): Promise<string> {
   if (cachedSqlConnectionString) {
     return cachedSqlConnectionString;
@@ -136,11 +169,8 @@ export async function getSqlConnectionString(): Promise<string> {
 
   const config = loadConfig();
 
-  if (config.useKeyVault && config.keyVaultUrl && config.sqlConnectionSecretName) {
-    const credential = new DefaultAzureCredential();
-    const secretClient = new SecretClient(config.keyVaultUrl, credential);
-    const secret = await secretClient.getSecret(config.sqlConnectionSecretName);
-    cachedSqlConnectionString = secret.value;
+  if (config.useKeyVault && config.sqlConnectionSecretName) {
+    cachedSqlConnectionString = await resolveSecret(config.sqlConnectionSecretName);
   } else {
     if (!config.sqlConnectionString) {
       throw new Error(
@@ -151,4 +181,40 @@ export async function getSqlConnectionString(): Promise<string> {
   }
 
   return cachedSqlConnectionString;
+}
+
+export async function getOllamaEndpoint(): Promise<string> {
+  if (cachedOllamaEndpoint) {
+    return cachedOllamaEndpoint;
+  }
+
+  const config = loadConfig();
+
+  if (config.ollamaEndpointSecretName && config.keyVaultUrl) {
+    cachedOllamaEndpoint = await resolveSecret(config.ollamaEndpointSecretName);
+  } else if (config.ollamaEndpoint) {
+    cachedOllamaEndpoint = config.ollamaEndpoint;
+  } else {
+    throw new Error(
+      'Ollama endpoint is not configured. Set OLLAMA_ENDPOINT for local dev or KEY_VAULT_URL + OLLAMA_ENDPOINT_SECRET_NAME for cloud.'
+    );
+  }
+
+  return cachedOllamaEndpoint;
+}
+
+export async function getOllamaApiKey(): Promise<string | null> {
+  if (cachedOllamaApiKey !== null) {
+    return cachedOllamaApiKey;
+  }
+
+  const config = loadConfig();
+
+  if (config.ollamaApiKeySecretName && config.keyVaultUrl) {
+    cachedOllamaApiKey = await resolveSecret(config.ollamaApiKeySecretName);
+  } else {
+    cachedOllamaApiKey = config.ollamaApiKey;
+  }
+
+  return cachedOllamaApiKey;
 }
