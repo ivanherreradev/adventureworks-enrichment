@@ -1,0 +1,22 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+
+    "STORAGE_QUEUE_NAME": "feedback-incoming",
+
+    "AZURE_OPENAI_ENDPOINT": "https://aoai-aw-ai-dev.openai.azure.com/",
+    "AZURE_OPENAI_DEPLOYMENT_NAME": "gpt-4o-mini",
+    "AZURE_OPENAI_API_VERSION": "2024-10-21",
+    "AZURE_OPENAI_API_KEY": "<replace-with-your-key-for-local-dev>",
+
+    "SQL_CONNECTION_STRING": "Server=tcp:sql-aw-ai-dev.database.windows.net,1433;Database=sqldb-aw-ai-dev;User Id=<user>;Password=<password>;Encrypt=true;TrustServerCertificate=false;",
+
+    "KEY_VAULT_URL": "https://kv-aw-ai-dev.vault.azure.net/",
+    "SQL_CONNECTION_SECRET_NAME": "SqlConnectionString",
+
+    "APP_ENVIRONMENT": "dev",
+    "APPINSIGHTS_INSTRUMENTATIONKEY": "<replace-with-your-instrumentation-key-for-cloud>"
+  }
+}

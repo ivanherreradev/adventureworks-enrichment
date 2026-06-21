@@ -1,7 +1,7 @@
 {
-  "name": "",
+  "name": "adventureworks-ai-sales-intelligence",
   "version": "1.0.0",
-  "description": "",
+  "description": "AdventureWorks AI Sales Intelligence - feedback enrichment pipeline",
   "main": "dist/src/functions/*.js",
   "scripts": {
     "build": "tsc",
@@ -12,9 +12,15 @@
     "test": "echo \"No tests yet...\""
   },
   "dependencies": {
-    "@azure/functions": "^4.0.0"
+    "@azure/functions": "^4.0.0",
+    "@azure/identity": "^4.0.0",
+    "@azure/keyvault-secrets": "^4.8.0",
+    "@azure/openai": "^2.0.0",
+    "applicationinsights": "^3.0.0",
+    "mssql": "^11.0.0"
   },
   "devDependencies": {
+    "@types/mssql": "^9.1.0",
     "@types/node": "18.x",
     "typescript": "^5.0.0",
     "rimraf": "^5.0.0"
