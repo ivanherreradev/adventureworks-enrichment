@@ -37,12 +37,20 @@ jobs:
           npm run test --if-present
           popd
 
+      - name: 'Prune dev dependencies for deployment'
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          npm prune --production
+          popd
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-app
           path: |
             dist
+            node_modules
             host.json
             package.json
             package-lock.json
