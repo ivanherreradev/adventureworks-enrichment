@@ -6,10 +6,19 @@
 
     "STORAGE_QUEUE_NAME": "feedback-incoming",
 
+    "LLM_PROVIDER": "azure",
+
     "AZURE_OPENAI_ENDPOINT": "https://aoai-aw-ai-dev.openai.azure.com/",
     "AZURE_OPENAI_DEPLOYMENT_NAME": "gpt-4o-mini",
     "AZURE_OPENAI_API_VERSION": "2024-10-21",
     "AZURE_OPENAI_API_KEY": "<replace-with-your-key-for-local-dev>",
+
+    "OLLAMA_ENDPOINT": "http://localhost:11434/v1",
+    "OLLAMA_MODEL": "llama3.1",
+    "OLLAMA_API_KEY": "<optional-for-ollama-cloud>",
+
+    "OPENAI_API_KEY": "<replace-with-your-openai-key>",
+    "OPENAI_MODEL": "gpt-4o-mini",
 
     "SQL_CONNECTION_STRING": "Server=tcp:sql-aw-ai-dev.database.windows.net,1433;Database=sqldb-aw-ai-dev;User Id=<user>;Password=<password>;Encrypt=true;TrustServerCertificate=false;",
 

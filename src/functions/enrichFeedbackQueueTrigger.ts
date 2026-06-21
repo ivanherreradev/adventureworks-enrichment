@@ -1,7 +1,7 @@
 import { app, InvocationContext } from '@azure/functions';
 import { loadConfig } from '../modules/config/config';
 import { logInfo, logWarning, logError, logEvent } from '../modules/logging/logger';
-import { enrichFeedback } from '../modules/openai/openaiClient';
+import { enrichFeedback } from '../modules/llm/llmClient';
 import { insertRawFeedback } from '../modules/sql/rawFeedbackRepository';
 import { insertEnrichment } from '../modules/sql/enrichmentRepository';
 import { insertAuditLog } from '../modules/sql/auditRepository';
@@ -119,17 +119,17 @@ async function enrichFeedbackQueueTrigger(
     throw error;
   }
 
-  let openAIResult: string;
+  let llmResult: string;
   let model: string;
   try {
-    const openAIResponse = await enrichFeedback(feedback);
-    openAIResult = openAIResponse.content;
-    model = openAIResponse.model;
+    const llmResponse = await enrichFeedback(feedback);
+    llmResult = llmResponse.content;
+    model = llmResponse.model;
   } catch (error) {
     logError('FeedbackProcessingFailed', error, { feedbackId });
     await recordAudit(
       feedbackId,
-      'OpenAIEnrichment',
+      'LlmEnrichment',
       'Failed',
       error instanceof Error ? error.message : String(error),
       null
@@ -140,7 +140,7 @@ async function enrichFeedbackQueueTrigger(
 
   try {
     const storeTimer = new Timer();
-    await persistEnrichment(feedbackId, 'Enriched', openAIResult, model);
+    await persistEnrichment(feedbackId, 'Enriched', llmResult, model);
     logEvent('FeedbackEnriched', {
       feedbackId,
       model,
