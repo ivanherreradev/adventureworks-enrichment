@@ -1,14 +1,12 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
 # More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy Node.js project to Azure Function App - func-aw-ai-dev
 
 on:
   push:
     branches:
-      
-main
-workflow_dispatch:
+      - main
+  workflow_dispatch:
 
 env:
   AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
@@ -21,41 +19,38 @@ jobs:
       contents: read
 
     steps:
-      
-name: Checkout GitHub Action
-      uses: actions/checkout@v4
+      - name: Checkout GitHub Action
+        uses: actions/checkout@v4
 
-      
-name: Setup Node ${{ env.NODE_VERSION }} Environment
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
+      - name: Setup Node ${{ env.NODE_VERSION }} Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      
-name: Install dependencies, build, and prune dev dependencies
-      shell: pwsh
-      run: |
-        npm ci
-        npm run build --if-present
-        npm run test --if-present
-        npm prune --omit=dev
+      - name: Install dependencies, build, and prune dev dependencies
+        shell: pwsh
+        run: |
+          npm ci
+          npm run build --if-present
+          npm run test --if-present
+          npm prune --omit=dev
 
-      
-name: Zip package for deployment
-      shell: pwsh
-      run: |
-        Compress-Archive 
-          -Path dist,node_modules,host.json,package.json,package-lock.json -DestinationPath deploy-package.zip `-Force
+      - name: Zip package for deployment
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path dist,node_modules,host.json,package.json,package-lock.json `
+            -DestinationPath deploy-package.zip `
+            -Force
 
           Write-Host "Package created:"
           Get-Item deploy-package.zip
 
-      
-name: Run Azure Functions Action
-      uses: Azure/functions-action@v1
-      with:
-        app-name: 'func-aw-ai-dev'
-        slot-name: 'Production'
-        package: 'deploy-package.zip'
-        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_7478F7E2DA9D441E8EAD4409BAFA47BC }}
+      - name: Run Azure Functions Action
+        uses: Azure/functions-action@v1
+        with:
+          app-name: 'func-aw-ai-dev'
+          slot-name: 'Production'
+          package: 'deploy-package.zip'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_7478F7E2DA9D441E8EAD4409BAFA47BC }}
