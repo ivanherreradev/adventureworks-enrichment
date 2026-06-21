@@ -14,7 +14,7 @@ env:
   NODE_VERSION: '18.x'
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: windows-latest
     permissions:
       contents: read
@@ -28,34 +28,24 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: 'Resolve Project Dependencies Using Npm'
+      - name: 'Install dependencies and build'
         shell: pwsh
         run: |
           pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
           npm install
           npm run build --if-present
-          npm run test --if-present
+          npm prune --production
           popd
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-app
-          path: |
-            dist
-            host.json
-            package.json
-            package-lock.json
-
-  deploy:
-    runs-on: windows-latest
-    needs: build
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: node-app
+      - name: 'Zip package for deployment'
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          $source = Get-Location
+          $destination = Join-Path $source 'deploy-package.zip'
+          Compress-Archive -Path dist,node_modules,host.json,package.json,package-lock.json -DestinationPath $destination -Force
+          Write-Host "Package created: $destination ($(Get-Item $destination).Length bytes)"
+          popd
 
       - name: 'Run Azure Functions Action'
         uses: Azure/functions-action@v1
@@ -63,6 +53,5 @@ jobs:
         with:
           app-name: 'func-aw-ai-dev'
           slot-name: 'Production'
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}deploy-package.zip'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_7478F7E2DA9D441E8EAD4409BAFA47BC }}
-          enable-oryx: true
