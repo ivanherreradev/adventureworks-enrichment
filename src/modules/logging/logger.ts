@@ -1,4 +1,4 @@
-import appInsights from 'applicationinsights';
+import appInsights, { KnownSeverityLevel } from 'applicationinsights';
 import { loadConfig } from '../config/config';
 
 let initialized = false;
@@ -14,7 +14,7 @@ function ensureInitialized(): void {
       .setAutoCollectRequests(true)
       .setAutoCollectDependencies(true)
       .setAutoCollectConsole(true, true)
-      .setUseDiskRetryCorrelation(true)
+      .setUseDiskRetryCaching(true)
       .start();
   }
   initialized = true;
@@ -49,7 +49,7 @@ export function logInfo(message: string, context?: LogContext): void {
   if (client) {
     client.trackTrace({
       message,
-      severityLevel: appInsights.Contracts.SeverityLevel.Information,
+      severity: KnownSeverityLevel.Information,
       properties: serializeContext(context),
     });
   }
@@ -61,7 +61,7 @@ export function logWarning(message: string, context?: LogContext): void {
   if (client) {
     client.trackTrace({
       message,
-      severityLevel: appInsights.Contracts.SeverityLevel.Warning,
+      severity: KnownSeverityLevel.Warning,
       properties: serializeContext(context),
     });
   }
@@ -80,7 +80,7 @@ export function logError(message: string, error?: unknown, context?: LogContext)
   if (client) {
     client.trackTrace({
       message,
-      severityLevel: appInsights.Contracts.SeverityLevel.Error,
+      severity: KnownSeverityLevel.Error,
       properties: mergedContext,
     });
     if (error instanceof Error) {
